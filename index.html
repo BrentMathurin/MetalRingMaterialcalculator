@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Metal Ring Calculator</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f8f8f8; margin: 0; padding: 0; }
+    .container { max-width: 1100px; margin: 32px auto; background: #fff; padding: 24px; border-radius: 8px; box-shadow: 0 2px 10px #aaa2; }
+    h2 { color: #333; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background: #eef; }
+    input[type="number"], select { width: 80px; }
+    select.material-type { width: 120px; }
+    select.cross-type { width: 90px; }
+    .add-row, .remove-row { background: #0a6; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin: 2px; }
+    .remove-row { background: #c33; }
+    .summary { background: #f4faff; border: 1px solid #ace; padding: 16px; border-radius: 6px; margin-top: 16px; }
+    .inline { display: inline-block; margin-right: 30px; }
+    .header-inputs { margin-bottom: 15px; }
+    .hide { display: none !important; }
+    @media(max-width: 700px){
+      .container{padding:8px;}
+      table{font-size:12px;}
+      .header-inputs{font-size:12px;}
+      select.material-type,select.cross-type{width:90px;}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Metal Ring Calculator</h2>
+    <div class="header-inputs">
+      <label class="inline">
+        Material Cost ($/kg): 
+        <input type="number" id="cost" value="2.50" min="0.01" step="0.01">
+      </label>
+    </div>
+    <table id="ringsTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Material</th>
+          <th>Density<br>(kg/m³)</th>
+          <th>Cross Section</th>
+          <th>Wall<br>Thickness<br>(mm)</th>
+          <th>Ring Diameter<br>(mm)</th>
+          <th>Material Diameter<br>(mm)</th>
+          <th>Number<br>of Rings</th>
+          <th>Length/<br>Ring (mm)</th>
+          <th>Volume/<br>Ring (cm³)</th>
+          <th>Weight/<br>Ring (kg)</th>
+          <th>Cost/<br>Ring ($)</th>
+          <th>Remove</th>
+        </tr>
+      </thead>
+      <tbody id="ringsBody">
+        <tr>
+          <td>1</td>
+          <td>
+            <select class="material-type">
+              <option value="Steel" data-density="7850">Steel</option>
+              <option value="Stainless Steel" data-density="8000">Stainless Steel</option>
+              <option value="Aluminum" data-density="2700">Aluminum</option>
+            </select>
+          </td>
+          <td><input type="number" class="density" value="7850" min="1" step="1"></td>
+          <td>
+            <select class="cross-type">
+              <option value="solid">Solid</option>
+              <option value="hollow">Hollow</option>
+            </select>
+          </td>
+          <td>
+            <input type="number" class="wall-thick hide" min="0.1" step="0.1" value="2">
+          </td>
+          <td><input type="number" class="ring-diam" min="1" value="100"></td>
+          <td><input type="number" class="mat-diam" min="1" value="10"></td>
+          <td><input type="number" class="num-rings" min="1" value="1"></td>
+          <td class="len-ring"></td>
+          <td class="vol-ring"></td>
+          <td class="wt-ring"></td>
+          <td class="cost-ring"></td>
+          <td><button type="button" class="remove-row" onclick="removeRow(this)">-</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <button type="button" class="add-row" onclick="addRow()">Add Row</button>
+    <div class="summary" id="summary"></div>
+  </div>
+<script>
+const MATERIAL_DENSITY = {
+  "Steel": 7850,
+  "Stainless Steel": 8000,
+  "Aluminum": 2700
+};
+
+function calcAll() {
+  const costPerKg = parseFloat(document.getElementById('cost').value) || 0;
+  let totalLength = 0, totalVolume = 0, totalWeight = 0, totalRings = 0, totalCost = 0;
+  let tbody = document.getElementById('ringsBody');
+  [...tbody.rows].forEach((row, i) => {
+    // Read values
+    const materialSel = row.querySelector('.material-type');
+    const material = materialSel.value;
+    const density = parseFloat(row.querySelector('.density').value) || MATERIAL_DENSITY[material];
+    const crossType = row.querySelector('.cross-type').value;
+    const wallInput = row.querySelector('.wall-thick');
+    const wallThick = crossType === 'hollow' ? parseFloat(wallInput.value) || 0 : 0;
+    const D = parseFloat(row.querySelector('.ring-diam').value) || 0; // mm
+    const d = parseFloat(row.querySelector('.mat-diam').value) || 0; // mm
+    const n = parseInt(row.querySelector('.num-rings').value) || 0;
+    // Length (use mean diameter)
+    let len = Math.PI * (D + d); // mm
+    let len_m = len / 1000; // m
+    // Cross-sectional area (mm²)
+    let area_mm2 = 0;
+    if (crossType === "solid") {
+      area_mm2 = Math.PI * (d/2) * (d/2);
+    } else {
+      // Hollow
+      const outerR = d/2;
+      let innerR = outerR - wallThick;
+      if (innerR < 0) innerR = 0;
+      area_mm2 = Math.PI * (outerR*outerR - innerR*innerR);
+    }
+    // Volumes
+    let vol_mm3 = area_mm2 * len; // mm³
+    let vol_cm3 = vol_mm3 / 1000; // cm³
+    let wt_kg = vol_mm3 / 1e9 * density; // kg
+    let cost = wt_kg * costPerKg;
+    // Totals
+    totalLength += len_m * n;
+    totalVolume += vol_cm3 * n;
+    totalWeight += wt_kg * n;
+    totalRings += n;
+    totalCost += cost * n;
+    // Set outputs
+    row.cells[8].textContent = len.toFixed(1);
+    row.cells[9].textContent = vol_cm3.toFixed(2);
+    row.cells[10].textContent = wt_kg.toFixed(3);
+    row.cells[11].textContent = cost.toFixed(2);
+  });
+  document.getElementById('summary').innerHTML = `
+    <b>Total Rings:</b> ${totalRings} &emsp; 
+    <b>Total Length Used:</b> ${totalLength.toFixed(2)} m <br>
+    <b>Total Volume:</b> ${totalVolume.toFixed(2)} cm³ &emsp; 
+    <b>Total Weight:</b> ${totalWeight.toFixed(3)} kg <br>
+    <b>Total Material Cost:</b> $${totalCost.toFixed(2)}
+  `;
+}
+
+function addRow() {
+  let tbody = document.getElementById('ringsBody');
+  let rowCount = tbody.rows.length;
+  let row = tbody.insertRow();
+  row.innerHTML = `
+    <td>${rowCount+1}</td>
+    <td>
+      <select class="material-type">
+        <option value="Steel" data-density="7850">Steel</option>
+        <option value="Stainless Steel" data-density="8000">Stainless Steel</option>
+        <option value="Aluminum" data-density="2700">Aluminum</option>
+      </select>
+    </td>
+    <td><input type="number" class="density" value="7850" min="1" step="1"></td>
+    <td>
+      <select class="cross-type">
+        <option value="solid">Solid</option>
+        <option value="hollow">Hollow</option>
+      </select>
+    </td>
+    <td>
+      <input type="number" class="wall-thick hide" min="0.1" step="0.1" value="2">
+    </td>
+    <td><input type="number" class="ring-diam" min="1" value="100"></td>
+    <td><input type="number" class="mat-diam" min="1" value="10"></td>
+    <td><input type="number" class="num-rings" min="1" value="1"></td>
+    <td class="len-ring"></td>
+    <td class="vol-ring"></td>
+    <td class="wt-ring"></td>
+    <td class="cost-ring"></td>
+    <td><button type="button" class="remove-row" onclick="removeRow(this)">-</button></td>
+  `;
+  setRowListeners(row);
+  calcAll();
+}
+
+function removeRow(btn){
+  let tbody = document.getElementById('ringsBody');
+  if (tbody.rows.length > 1) {
+    btn.closest('tr').remove();
+    [...tbody.rows].forEach((row,i) => row.cells[0].textContent = i+1);
+    calcAll();
+  }
+}
+
+function setRowListeners(row){
+  // Material selection changes density input
+  row.querySelector('.material-type').addEventListener('change', function() {
+    const density = MATERIAL_DENSITY[this.value] || 7850;
+    row.querySelector('.density').value = density;
+    calcAll();
+  });
+  row.querySelector('.density').addEventListener('input', calcAll);
+  // Cross-section: show/hide wall thickness
+  const crossSel = row.querySelector('.cross-type');
+  const wallInput = row.querySelector('.wall-thick');
+  crossSel.addEventListener('change', function() {
+    if (this.value === 'hollow') {
+      wallInput.classList.remove('hide');
+    } else {
+      wallInput.classList.add('hide');
+    }
+    calcAll();
+  });
+  wallInput.addEventListener('input', calcAll);
+  // All other inputs
+  row.querySelectorAll('.ring-diam, .mat-diam, .num-rings').forEach(inp => {
+    inp.addEventListener('input', calcAll);
+  });
+}
+
+// Initial row listeners
+document.querySelectorAll('#ringsBody tr').forEach(setRowListeners);
+document.getElementById('cost').addEventListener('input', calcAll);
+calcAll();
+</script>
+</body>
+</html>
